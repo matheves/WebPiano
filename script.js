@@ -12,18 +12,18 @@ class Piano {
         // Initialisation du contexte audio
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
-        // Paramètres ADSR (en secondes)
+        // Paramètres ADSR ajustés pour un son plus naturel
         this.adsr = {
-            attack: 0.02,
-            decay: 0.2,
-            sustain: 0.7,
-            release: 0.5
+            attack: 0.005,  // Plus rapide pour une réponse immédiate
+            decay: 0.1,     // Déclin rapide
+            sustain: 0.3,   // Niveau de sustain plus bas
+            release: 0.3    // Release plus court
         };
 
-        // Harmoniques pour enrichir le son
+        // Harmoniques ajustées pour un son plus riche
         this.harmonics = [
             { frequency: 1, gain: 0.7 },    // Fondamentale
-            { frequency: 2, gain: 0.2 },    // Première harmonique
+            { frequency: 2, gain: 0.15 },   // Première harmonique
             { frequency: 3, gain: 0.1 },    // Deuxième harmonique
             { frequency: 4, gain: 0.05 }    // Troisième harmonique
         ];
@@ -38,11 +38,12 @@ class Piano {
             ['B', 493.88]
         ]);
 
-        // Stockage des oscillateurs actifs
+        this.pressedKeys = new Set();
         this.activeOscillators = new Map();
+        this.velocities = new Map(); // Pour stocker la vélocité des notes
         
-        // Ajout d'un Map pour suivre l'état des touches
-        this.pressedKeys = new Map();
+        // Mise en place des écouteurs d'événements clavier
+        this.setupKeyboardListeners();
         
         this.init();
     }
@@ -54,37 +55,46 @@ class Piano {
             key.addEventListener('mouseup', () => this.stopNote(key));
         });
 
-        // Gestion du clavier physique
-        document.addEventListener('keydown', (e) => {
-            const key = e.key.toUpperCase();
-            // Éviter la répétition automatique du clavier
-            if (e.repeat) return;
-            
-            if (this.notes.has(key) && !this.pressedKeys.has(key)) {
-                const note = this.notes.get(key);
-                this.pressedKeys.set(key, true);
-                this.playNote(note);
-                this.activateKey(note);
-            }
-        });
-
-        document.addEventListener('keyup', (e) => {
-            const key = e.key.toUpperCase();
-            if (this.notes.has(key)) {
-                const note = this.notes.get(key);
-                this.pressedKeys.delete(key);
-                this.stopNote(this.findKeyElement(note));
-            }
-        });
-
         // Ajout de l'initialisation du contexte audio au premier clic
         document.addEventListener('click', () => {
             if (this.audioContext.state === 'suspended') {
                 this.audioContext.resume();
             }
         }, { once: true });
+    }
 
-        // Ajout d'un gestionnaire pour nettoyer les sons si la fenêtre perd le focus
+    setupKeyboardListeners() {
+        document.addEventListener('keydown', (e) => {
+            if (e.repeat) return;
+            
+            const key = e.key.toUpperCase();
+            if (!this.notes.has(key)) return;
+
+            const note = this.notes.get(key);
+            
+            // Si la note est déjà active, on la redéclenche
+            if (this.activeOscillators.has(note)) {
+                this.retrigerNote(note);
+            } else {
+                this.playNote(note);
+            }
+            
+            this.pressedKeys.add(key);
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const key = e.key.toUpperCase();
+            if (!this.notes.has(key)) return;
+
+            this.pressedKeys.delete(key);
+            const note = this.notes.get(key);
+            const keyElement = this.findKeyElement(note);
+            
+            if (keyElement) {
+                this.releaseNote(note, keyElement);
+            }
+        });
+
         window.addEventListener('blur', () => {
             this.cleanupAllSounds();
         });
@@ -119,98 +129,77 @@ class Piano {
         return { masterGain, oscillators };
     }
 
-    applyADSR(gainNode) {
-        const now = this.audioContext.currentTime;
-        const { attack, decay, sustain, release } = this.adsr;
-
-        gainNode.gain.setValueAtTime(0, now);
-        
-        // Attack
-        gainNode.gain.linearRampToValueAtTime(1, now + attack);
-        
-        // Decay et Sustain
-        gainNode.gain.linearRampToValueAtTime(sustain, now + attack + decay);
-
-        return gainNode;
-    }
-
     playNote(note) {
-        // Nettoyage de l'ancien son si existant
-        if (this.activeOscillators.has(note)) {
-            const keyElement = this.findKeyElement(note);
-            this.stopNote(keyElement);
-        }
-
         this.noteDisplay.textContent = `Note: ${note}`;
         this.activateKey(note);
 
         const frequency = this.frequencies.get(note);
         const { masterGain, oscillators } = this.createPianoSound(frequency);
 
-        // Application de l'enveloppe ADSR
-        this.applyADSR(masterGain);
+        const now = this.audioContext.currentTime;
+        masterGain.gain.setValueAtTime(0, now);
+        masterGain.gain.linearRampToValueAtTime(1, now + this.adsr.attack);
+        masterGain.gain.linearRampToValueAtTime(
+            this.adsr.sustain,
+            now + this.adsr.attack + this.adsr.decay
+        );
 
-        // Connexion au contexte audio
-        masterGain.connect(this.audioContext.destination);
-
-        // Démarrage de tous les oscillateurs
-        oscillators.forEach(({ oscillator }) => oscillator.start());
-
-        // Ajout d'un filtre passe-bas dynamique
+        // Connexion au contexte audio avec filtre
         const filter = this.audioContext.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(5000, this.audioContext.currentTime);
-        filter.Q.setValueAtTime(1, this.audioContext.currentTime);
+        filter.frequency.setValueAtTime(5000, now);
+        filter.Q.setValueAtTime(1, now);
 
-        // Insertion du filtre dans la chaîne audio
-        masterGain.disconnect(this.audioContext.destination);
         masterGain.connect(filter);
         filter.connect(this.audioContext.destination);
 
-        // Stockage des références
+        oscillators.forEach(({ oscillator }) => oscillator.start());
+
         this.activeOscillators.set(note, { 
             oscillators, 
             masterGain,
-            filter
+            filter,
+            startTime: now
         });
     }
 
     stopNote(keyElement) {
         if (keyElement) {
             const note = keyElement.dataset.note;
-            const sound = this.activeOscillators.get(note);
-            
-            if (sound) {
-                const { oscillators, masterGain } = sound;
-                const now = this.audioContext.currentTime;
+            if (!this.pressedKeys.has(note)) {
+                const sound = this.activeOscillators.get(note);
                 
-                try {
-                    // Application du release
-                    masterGain.gain.cancelScheduledValues(now);
-                    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-                    masterGain.gain.linearRampToValueAtTime(0, now + this.adsr.release);
+                if (sound) {
+                    const { oscillators, masterGain } = sound;
+                    const now = this.audioContext.currentTime;
+                    
+                    try {
+                        // Application du release
+                        masterGain.gain.cancelScheduledValues(now);
+                        masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+                        masterGain.gain.linearRampToValueAtTime(0, now + this.adsr.release);
 
-                    // Arrêt des oscillateurs après le release
-                    setTimeout(() => {
-                        oscillators.forEach(({ oscillator }) => {
-                            try {
-                                oscillator.stop();
-                                oscillator.disconnect();
-                            } catch (e) {
-                                console.log('Oscillator already stopped');
-                            }
-                        });
-                        masterGain.disconnect();
+                        // Arrêt des oscillateurs après le release
+                        setTimeout(() => {
+                            oscillators.forEach(({ oscillator }) => {
+                                try {
+                                    oscillator.stop();
+                                    oscillator.disconnect();
+                                } catch (e) {
+                                    console.log('Oscillator already stopped');
+                                }
+                            });
+                            masterGain.disconnect();
+                            this.activeOscillators.delete(note);
+                        }, this.adsr.release * 1000);
+                    } catch (e) {
+                        console.log('Error stopping note:', e);
                         this.activeOscillators.delete(note);
-                    }, this.adsr.release * 1000);
-                } catch (e) {
-                    console.log('Error stopping note:', e);
-                    // Nettoyage forcé en cas d'erreur
-                    this.activeOscillators.delete(note);
+                    }
                 }
+                
+                keyElement.classList.remove('active');
             }
-            
-            keyElement.classList.remove('active');
         }
     }
 
@@ -239,19 +228,101 @@ class Piano {
         });
     }
 
+    forceStopNote(note) {
+        const sound = this.activeOscillators.get(note);
+        if (sound) {
+            const { oscillators, masterGain, filter } = sound;
+            
+            // Arrêt immédiat du son
+            oscillators.forEach(({ oscillator }) => {
+                try {
+                    oscillator.stop();
+                    oscillator.disconnect();
+                } catch (e) {
+                    console.log('Oscillator already stopped');
+                }
+            });
+
+            if (masterGain) masterGain.disconnect();
+            if (filter) filter.disconnect();
+            
+            this.activeOscillators.delete(note);
+        }
+
+        const keyElement = this.findKeyElement(note);
+        if (keyElement) {
+            keyElement.classList.remove('active');
+        }
+    }
+
     cleanupAllSounds() {
+        // Nettoie tous les timeouts
+        this.noteTimeouts.forEach((timeout) => clearTimeout(timeout));
+        this.noteTimeouts.clear();
+
         // Arrête tous les sons actifs
-        this.activeOscillators.forEach((sound, note) => {
-            const keyElement = this.findKeyElement(note);
-            this.stopNote(keyElement);
+        this.activeOscillators.forEach((_, note) => {
+            this.forceStopNote(note);
         });
+        
         this.pressedKeys.clear();
         this.activeOscillators.clear();
         
-        // Réinitialise l'affichage visuel
         this.keyElements.forEach(key => {
             key.classList.remove('active');
         });
+    }
+
+    retrigerNote(note) {
+        const sound = this.activeOscillators.get(note);
+        if (!sound) return;
+
+        const now = this.audioContext.currentTime;
+        const { masterGain } = sound;
+
+        // Réinitialisation rapide du gain pour simuler une nouvelle frappe
+        masterGain.gain.cancelScheduledValues(now);
+        masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+        masterGain.gain.linearRampToValueAtTime(1, now + 0.005);
+        masterGain.gain.linearRampToValueAtTime(
+            this.adsr.sustain,
+            now + this.adsr.attack + this.adsr.decay
+        );
+    }
+
+    releaseNote(note, keyElement) {
+        const sound = this.activeOscillators.get(note);
+        if (!sound) return;
+
+        const now = this.audioContext.currentTime;
+        const { masterGain } = sound;
+
+        // Application d'un release naturel
+        masterGain.gain.cancelScheduledValues(now);
+        masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+        masterGain.gain.linearRampToValueAtTime(0, now + this.adsr.release);
+
+        // Nettoyage après le release
+        setTimeout(() => {
+            if (!this.pressedKeys.has(note)) {
+                this.cleanupNote(note);
+                keyElement.classList.remove('active');
+            }
+        }, this.adsr.release * 1000);
+    }
+
+    cleanupNote(note) {
+        const sound = this.activeOscillators.get(note);
+        if (sound) {
+            const { oscillators, masterGain, filter } = sound;
+            oscillators.forEach(({ oscillator }) => {
+                oscillator.stop();
+                oscillator.disconnect();
+            });
+            if (masterGain) masterGain.disconnect();
+            if (filter) filter.disconnect();
+            this.activeOscillators.delete(note);
+        }
     }
 }
 
