@@ -11,6 +11,7 @@ L'application **Piano Web** est une simulation interactive d'un piano réalisée
 - Support du clavier : les touches du clavier physique sont mappées aux touches du piano.
 - Affichage de la note jouée en temps réel.
 - **Jeu Guitar Hero** : Le joueur doit appuyer sur les touches au bon moment pour jouer une chanson.
+- **Démo de la chanson canonInDHard** : Le joueur peut lancer la démo qui joue la chanson canonInDHard avec le piano de l'application.
 - Compatible avec les navigateurs modernes.
 
 ## Prérequis
@@ -39,6 +40,7 @@ Voici la structure de base du projet :
     ├── style.css # Feuille de style pour l'interface 
     ├── script.js # Fichier JavaScript pour la logique de l'application 
     ├── game.js # Logique du jeu Guitar Hero
+    ├── demo.js # Logique de la démo de la chanson canonInDHard
     └── README.md # Documentation du projet
 
 ### 3. Jeu Guitar Hero
@@ -67,6 +69,17 @@ L'interface de jeu affichera :
 - **Les touches du piano** correspondantes.
 - **Le score actuel** et le temps restant.
 - **Un bouton de démarrage** pour commencer la chanson.
+
+### 4. Démo de la chanson canonInDHard
+
+La démo de la chanson canonInDHard permet au joueur de jouer la chanson canonInDHard avec le piano de l'application.
+
+#### 4.1 Interface de la démo
+
+L'interface de la démo affichera :
+
+- **Un bouton de démarrage** pour commencer la démo.
+- **Un bouton d'arrêt** pour arrêter la démo.
 
 ### 4. Ouverture du projet
 
