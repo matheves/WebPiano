@@ -162,7 +162,10 @@ class GuitarHeroGame {
         const ctx = canvas.getContext('2d');
         
         const animate = () => {
-            if (!this.isPlaying) return;
+            if (!this.isPlaying) {
+                this.piano.cleanupAllSounds();
+                return;
+            }
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
@@ -191,6 +194,7 @@ class GuitarHeroGame {
             );
 
             if (this.currentSong.length === 0) {
+                this.piano.cleanupAllSounds();
                 this.endGame();
             } else {
                 requestAnimationFrame(animate);
@@ -278,6 +282,15 @@ class GuitarHeroGame {
             this.score += this.calculatePoints(Math.abs(currentTime - hitNote.time));
             this.updateScore();
             this.currentSong = this.currentSong.filter(note => note !== hitNote);
+
+            if (this.currentSong.length === 0) {
+                setTimeout(() => {
+                    const keyElement = this.piano.findKeyElement(noteHit);
+                    if (keyElement) {
+                        this.piano.stopNote(keyElement);
+                    }
+                }, 300);
+            }
         }
     }
 
@@ -294,6 +307,11 @@ class GuitarHeroGame {
 
     endGame() {
         this.isPlaying = false;
+        
+        if (this.piano && this.piano.activeOscillators.size > 0) {
+            this.piano.cleanupAllSounds();
+        }
+        
         alert(`Jeu terminé ! Score final : ${this.score}`);
     }
 } 
