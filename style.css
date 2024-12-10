@@ -25,7 +25,23 @@
     position: absolute;
     display: flex;
     top: 0;
-    left: 37px;
+    left: 0;
+    width: 100%;
+    justify-content: space-between;
+}
+
+.black-keys-set-1 {
+    position: absolute;
+    left: 70px;
+    display: flex;
+    gap: 40px;
+}
+
+.black-keys-set-2 {
+    position: absolute;
+    left: 370px;
+    display: flex;
+    gap: 40px;
 }
 
 .key {
@@ -49,8 +65,8 @@
     width: 60px;
     height: 180px;
     background-color: black;
-    margin: 0 20px;
     color: white;
+    z-index: 1;
 }
 
 .key.active {
