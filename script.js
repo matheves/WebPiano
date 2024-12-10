@@ -9,42 +9,39 @@ class Piano {
         this.keyElements = document.querySelectorAll('.key');
         this.noteDisplay = document.getElementById('note-display');
         
-        // Initialisation du contexte audio
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
-        // Paramètres ADSR ajustés pour un son plus naturel
+        // ADSR amélioré pour un son plus naturel
         this.adsr = {
-            attack: 0.005,  // Plus rapide pour une réponse immédiate
-            decay: 0.1,     // Déclin rapide
-            sustain: 0.3,   // Niveau de sustain plus bas
-            release: 0.3    // Release plus court
+            attack: 0.02,    // Attaque plus progressive
+            decay: 0.15,     // Déclin plus naturel
+            sustain: 0.7,    // Niveau de sustain plus élevé
+            release: 0.3     // Release progressif
         };
 
-        // Harmoniques ajustées pour un son plus riche
+        // Harmoniques plus riches
         this.harmonics = [
-            { frequency: 1, gain: 0.7 },    // Fondamentale
-            { frequency: 2, gain: 0.15 },   // Première harmonique
-            { frequency: 3, gain: 0.1 },    // Deuxième harmonique
-            { frequency: 4, gain: 0.05 }    // Troisième harmonique
+            { frequency: 1, gain: 0.6 },     // Fondamentale
+            { frequency: 2, gain: 0.2 },     // Première harmonique
+            { frequency: 3, gain: 0.1 },     // Deuxième harmonique
+            { frequency: 4, gain: 0.05 },    // Troisième harmonique
+            { frequency: 5, gain: 0.025 }    // Quatrième harmonique
         ];
 
         this.frequencies = new Map([
             ['C', 261.63], ['C#', 277.18],
             ['D', 293.66], ['D#', 311.13],
-            ['E', 329.63],
-            ['F', 349.23], ['F#', 369.99],
-            ['G', 392.00], ['G#', 415.30],
-            ['A', 440.00], ['A#', 466.16],
-            ['B', 493.88]
+            ['E', 329.63], ['F', 349.23],
+            ['F#', 369.99], ['G', 392.00],
+            ['G#', 415.30], ['A', 440.00],
+            ['A#', 466.16], ['B', 493.88]
         ]);
 
         this.pressedKeys = new Set();
         this.activeOscillators = new Map();
-        this.velocities = new Map(); // Pour stocker la vélocité des notes
+        this.noteTimeouts = new Map();
         
-        // Mise en place des écouteurs d'événements clavier
         this.setupKeyboardListeners();
-        
         this.init();
     }
 
@@ -100,66 +97,88 @@ class Piano {
         });
     }
 
-    createPianoSound(frequency) {
+    createPianoSound(frequency, velocity = 0.7) {
         const masterGain = this.audioContext.createGain();
         const oscillators = [];
+        const now = this.audioContext.currentTime;
 
-        // Création des harmoniques
+        // Création du filtre principal
+        const mainFilter = this.audioContext.createBiquadFilter();
+        mainFilter.type = 'lowpass';
+        mainFilter.frequency.setValueAtTime(5000, now);
+        mainFilter.Q.setValueAtTime(1, now);
+
+        // Ajout d'un compresseur pour un son plus équilibré
+        const compressor = this.audioContext.createDynamicsCompressor();
+        compressor.threshold.setValueAtTime(-24, now);
+        compressor.knee.setValueAtTime(30, now);
+        compressor.ratio.setValueAtTime(12, now);
+        compressor.attack.setValueAtTime(0.003, now);
+        compressor.release.setValueAtTime(0.25, now);
+
         this.harmonics.forEach(harmonic => {
             const oscillator = this.audioContext.createOscillator();
             const gainNode = this.audioContext.createGain();
             
-            // Configuration de l'oscillateur
             oscillator.type = 'sine';
             oscillator.frequency.setValueAtTime(
                 frequency * harmonic.frequency,
-                this.audioContext.currentTime
+                now
             );
 
-            // Application du gain pour l'harmonique
-            gainNode.gain.setValueAtTime(harmonic.gain, this.audioContext.currentTime);
+            // Ajustement du gain en fonction de la vélocité
+            const harmonicGain = harmonic.gain * velocity;
+            gainNode.gain.setValueAtTime(harmonicGain, now);
 
-            // Connexion oscillateur -> gain -> master
             oscillator.connect(gainNode);
             gainNode.connect(masterGain);
             
             oscillators.push({ oscillator, gainNode });
         });
 
-        return { masterGain, oscillators };
+        // Chaîne de traitement du son
+        masterGain.connect(mainFilter);
+        mainFilter.connect(compressor);
+        compressor.connect(this.audioContext.destination);
+
+        return { masterGain, oscillators, mainFilter, compressor };
     }
 
-    playNote(note) {
+    playNote(note, velocity = 0.7) {
         this.noteDisplay.textContent = `Note: ${note}`;
         this.activateKey(note);
 
+        // Si la note est déjà active, on la nettoie d'abord
+        if (this.activeOscillators.has(note)) {
+            this.cleanupNote(note);
+        }
+
         const frequency = this.frequencies.get(note);
-        const { masterGain, oscillators } = this.createPianoSound(frequency);
+        const { masterGain, oscillators, mainFilter, compressor } = this.createPianoSound(frequency, velocity);
 
         const now = this.audioContext.currentTime;
+        
+        // Enveloppe ADSR améliorée
         masterGain.gain.setValueAtTime(0, now);
-        masterGain.gain.linearRampToValueAtTime(1, now + this.adsr.attack);
+        masterGain.gain.linearRampToValueAtTime(velocity, now + this.adsr.attack);
         masterGain.gain.linearRampToValueAtTime(
-            this.adsr.sustain,
+            velocity * this.adsr.sustain,
             now + this.adsr.attack + this.adsr.decay
         );
 
-        // Connexion au contexte audio avec filtre
-        const filter = this.audioContext.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(5000, now);
-        filter.Q.setValueAtTime(1, now);
+        // Ajustement du filtre en fonction de la vélocité
+        const filterFreq = 2000 + (velocity * 6000);
+        mainFilter.frequency.setValueAtTime(filterFreq, now);
 
-        masterGain.connect(filter);
-        filter.connect(this.audioContext.destination);
+        oscillators.forEach(({ oscillator }) => oscillator.start(now));
 
-        oscillators.forEach(({ oscillator }) => oscillator.start());
-
-        this.activeOscillators.set(note, { 
-            oscillators, 
+        this.activeOscillators.set(note, {
+            oscillators,
             masterGain,
-            filter,
-            startTime: now
+            mainFilter,
+            compressor,
+            startTime: now,
+            velocity
         });
     }
 
@@ -256,13 +275,11 @@ class Piano {
     }
 
     cleanupAllSounds() {
-        // Nettoie tous les timeouts
-        this.noteTimeouts.forEach((timeout) => clearTimeout(timeout));
+        this.noteTimeouts.forEach(timeout => clearTimeout(timeout));
         this.noteTimeouts.clear();
 
-        // Arrête tous les sons actifs
         this.activeOscillators.forEach((_, note) => {
-            this.forceStopNote(note);
+            this.cleanupNote(note);
         });
         
         this.pressedKeys.clear();
@@ -295,32 +312,49 @@ class Piano {
         if (!sound) return;
 
         const now = this.audioContext.currentTime;
-        const { masterGain } = sound;
+        const { masterGain, velocity } = sound;
 
-        // Application d'un release naturel
+        // Release progressif
         masterGain.gain.cancelScheduledValues(now);
         masterGain.gain.setValueAtTime(masterGain.gain.value, now);
         masterGain.gain.linearRampToValueAtTime(0, now + this.adsr.release);
 
-        // Nettoyage après le release
-        setTimeout(() => {
+        // Nettoyage différé
+        const timeout = setTimeout(() => {
             if (!this.pressedKeys.has(note)) {
                 this.cleanupNote(note);
                 keyElement.classList.remove('active');
             }
         }, this.adsr.release * 1000);
+
+        this.noteTimeouts.set(note, timeout);
     }
 
     cleanupNote(note) {
+        // Nettoyage du timeout existant
+        if (this.noteTimeouts.has(note)) {
+            clearTimeout(this.noteTimeouts.get(note));
+            this.noteTimeouts.delete(note);
+        }
+
         const sound = this.activeOscillators.get(note);
         if (sound) {
-            const { oscillators, masterGain, filter } = sound;
-            oscillators.forEach(({ oscillator }) => {
-                oscillator.stop();
-                oscillator.disconnect();
+            const { oscillators, masterGain, mainFilter, compressor } = sound;
+            
+            oscillators.forEach(({ oscillator, gainNode }) => {
+                try {
+                    oscillator.stop();
+                    oscillator.disconnect();
+                    gainNode.disconnect();
+                } catch (e) {
+                    console.log('Oscillator cleanup error:', e);
+                }
             });
-            if (masterGain) masterGain.disconnect();
-            if (filter) filter.disconnect();
+
+            masterGain.disconnect();
+            mainFilter.disconnect();
+            compressor.disconnect();
+            
             this.activeOscillators.delete(note);
         }
     }
