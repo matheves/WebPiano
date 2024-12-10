@@ -35,5 +35,12 @@
         </div>
     </div>
     <script src="script.js"></script>
+    <script src="game.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const piano = new Piano();
+            const game = new GuitarHeroGame(piano);
+        });
+    </script>
 </body>
 </html> 
