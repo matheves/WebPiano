@@ -81,7 +81,110 @@ class GuitarHeroGame {
                 { note: 'E', time: 11500 },
                 { note: 'D', time: 12000 },
                 { note: 'G', time: 12500 }
-            ]
+            ],
+            'canonInD': [
+                { note: 'D', time: 0 },
+                { note: 'A', time: 500 },
+                { note: 'B', time: 1000 },
+                { note: 'F#', time: 1500 },
+                { note: 'G', time: 2000 },
+                { note: 'D', time: 2500 },
+                { note: 'G', time: 3000 },
+                { note: 'A', time: 3500 },
+                { note: 'D', time: 4000 },
+                { note: 'A', time: 4500 },
+                { note: 'B', time: 5000 },
+                { note: 'F#', time: 5500 },
+                { note: 'G', time: 6000 },
+                { note: 'D', time: 6500 },
+                { note: 'G', time: 7000 },
+                { note: 'A', time: 7500 },
+                { note: 'D', time: 8000 },
+                { note: 'A', time: 8500 },
+                { note: 'B', time: 9000 },
+                { note: 'F#', time: 9500 },
+                { note: 'G', time: 10000 },
+                { note: 'D', time: 10500 },
+                { note: 'G', time: 11000 },
+                { note: 'A', time: 11500 }
+            ],
+            'canonInDHard': [
+                // Thème principal rapide
+                { note: 'D', time: 0 },
+                { note: 'F#', time: 200 },
+                { note: 'A', time: 400 },
+                { note: 'D', time: 600 },
+                { note: 'C#', time: 800 },
+                { note: 'B', time: 1000 },
+                { note: 'A', time: 1200 },
+                { note: 'G', time: 1400 },
+                
+                // Variation avec des triolets
+                { note: 'F#', time: 1600 },
+                { note: 'A', time: 1700 },
+                { note: 'D', time: 1800 },
+                { note: 'F#', time: 1900 },
+                { note: 'A', time: 2000 },
+                { note: 'D', time: 2100 },
+                
+                // Passage rapide descendant
+                { note: 'B', time: 2300 },
+                { note: 'A', time: 2400 },
+                { note: 'G', time: 2500 },
+                { note: 'F#', time: 2600 },
+                { note: 'E', time: 2700 },
+                { note: 'D', time: 2800 },
+                
+                // Motif complexe
+                { note: 'A', time: 3000 },
+                { note: 'E', time: 3100 },
+                { note: 'A', time: 3200 },
+                { note: 'C#', time: 3300 },
+                { note: 'E', time: 3400 },
+                { note: 'A', time: 3500 },
+                
+                // Séquence rapide alternée
+                { note: 'D', time: 3700 },
+                { note: 'F#', time: 3800 },
+                { note: 'D', time: 3900 },
+                { note: 'A', time: 4000 },
+                { note: 'F#', time: 4100 },
+                { note: 'D', time: 4200 },
+                
+                // Passage chromatique
+                { note: 'G#', time: 4400 },
+                { note: 'A', time: 4500 },
+                { note: 'A#', time: 4600 },
+                { note: 'B', time: 4700 },
+                
+                // Arpèges rapides
+                { note: 'D', time: 4900 },
+                { note: 'F#', time: 5000 },
+                { note: 'A', time: 5100 },
+                { note: 'D', time: 5200 },
+                { note: 'F#', time: 5300 },
+                { note: 'A', time: 5400 },
+                
+                // Final complexe
+                { note: 'B', time: 5600 },
+                { note: 'G', time: 5700 },
+                { note: 'E', time: 5800 },
+                { note: 'C#', time: 5900 },
+                { note: 'A', time: 6000 },
+                { note: 'F#', time: 6100 },
+                { note: 'D', time: 6200 },
+                { note: 'B', time: 6300 },
+                { note: 'G', time: 6400 },
+                { note: 'E', time: 6500 },
+                { note: 'C#', time: 6600 },
+                { note: 'A', time: 6700 },
+                
+                // Finale
+                { note: 'D', time: 6900 },
+                { note: 'A', time: 7000 },
+                { note: 'F#', time: 7100 },
+                { note: 'D', time: 7200 }
+]
         };
 
         this.init();
@@ -194,7 +297,6 @@ class GuitarHeroGame {
             );
 
             if (this.currentSong.length === 0) {
-                this.piano.cleanupAllSounds();
                 this.endGame();
             } else {
                 requestAnimationFrame(animate);
